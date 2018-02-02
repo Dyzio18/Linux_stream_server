@@ -91,7 +91,7 @@ int main(int argc, char **argv) {
     }
 
 
-
+    kill(serverPID, SIGRTMIN+11);
 
 
     pause();

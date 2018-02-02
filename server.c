@@ -12,6 +12,9 @@
 #include <sys/stat.h>
 #include <errno.h>
 
+int filedesc;
+
+
 /**
  * Display help when run with wrong options or -h/--help
     Serwer:
@@ -22,6 +25,26 @@ void helpDisplay(){
     printf("\nSerwer:\n\t-k <katalog> katalog, w którym są przechowywane pliki do udostępniania\n\t-p <plik> ścieżka do pliku pełniącego rolę tablicy ogłoszeniowej.\n\n");
 }
 
+void clientRegisterSignal_handler(int signum, siginfo_t *siginfo, void *ptrVoid)
+{
+    char* adressConf;
+    adressConf = "12345\n";
+    if (!write(filedesc, adressConf, sizeof(char)*7)) {
+        perror("write");
+    }}
+
+void clientRegisterSignal_create()
+{
+    struct sigaction usr;
+    memset( &usr, '\0', sizeof(usr));
+    usr.sa_flags = SA_SIGINFO;
+    usr.sa_sigaction = clientRegisterSignal_handler;
+
+    if( (sigaction(SIGRTMIN+11, &usr, NULL)) == -1) {
+        perror("sigaction");
+    }
+
+}
 
 
 // *************************************************************
@@ -79,14 +102,31 @@ int main(int argc, char **argv) {
         return 1;
     } 
     else {
-        printf("\nServe files from: %s \nInfofile: %s \n\n", catalog, infofile);
+        printf("\nServe files from: %s \nInfofile: %s \n", catalog, infofile);
     }
 
+    // Get server PID
+    pid_t serverPID = getpid();
+    printf("\nServer PID: %d\n\n", serverPID );
 
+    clientRegisterSignal_create();
 
+    // Open info file
+    filedesc = open(infofile, O_WRONLY);
+    if (filedesc < 0) {
+        return -1;
+    }
+ 
 
+ 
 
-    pause();
+    
+    int serverLoop = 1;
+    while(serverLoop){
+
+        pause();
+ 
+    }
 
     return 0;
 }
