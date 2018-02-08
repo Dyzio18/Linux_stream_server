@@ -10,33 +10,40 @@
 #include <string.h>
 #include <sys/stat.h>
 #include <errno.h>
-#include <sys/un.h>
+#include <sys/signalfd.h>
 #include <sys/socket.h>
-#include <stdint.h> // int32_t
 
-
-#include "common.h"
+#include "common.h" 
 
 
 #define SV_SOCK_PATH "/tmp/us_xfr"
 #define BUF_SIZE 100
+struct signalfd_siginfo fdsi;
 
 
-/**
- * Display help when run with wrong options or -h/--help
-    Klient:
-    -s <pid> PID procesu serwera,
-    -r <sygnał> numer sygnału RT, który ma być zastosowany przy komunikacie zwrotnym,
-    -x <nr> numer księgi, którą ma odczytać,
-    -p <czas> długość interwału pomiędzy komunikatami.
- */
-/*void helpDisplay()
+void serverResponseSignal_handler(int signum, siginfo_t *siginfo, void *ptrVoid)
 {
-    printf("\nKlient:\n\t-s <pid> PID procesu serwera\n\t-r <sygnał> numer sygnału RT, który ma być zastosowany przy komunikacie zwrotnym\n\t-x <nr> numer księgi, którą ma odczytać\n\t-p <czas> długość interwału pomiędzy komunikatami\n\n\n");
-}*/
+    unsigned int hostPID = siginfo->si_pid; // Get PID of signal sender
+    unsigned int serverValue = siginfo->si_value.sival_int; // Get client value
+
+    printf("PID-->\t%d\nVALUE-->%08x\n ", hostPID, serverValue);
 
 
-int convertInput (int code, int book, char part, int time);
+}
+
+void serverResponseSignal_create(int sigNum)
+{
+    struct sigaction clSig;
+    memset(&clSig, '\0', sizeof(clSig));
+    clSig.sa_flags = SA_SIGINFO;
+    clSig.sa_sigaction = serverResponseSignal_handler;
+
+    if ((sigaction(SIGRTMIN + sigNum, &clSig, NULL)) == -1)
+    {
+        perror("sigaction");
+    }
+}
+
 
 // *************************************************************
 // *************************************************************
@@ -79,7 +86,7 @@ int main(int argc, char **argv)
             signalNum = (int)strtol(optarg, (char **)NULL, 10);
             break;
         case 'h':
-            helpDisplay();
+            helpDisplay_client();
             return 0;
         case 'x':
             bookNum = (int)strtol(optarg, (char **)NULL, 10);
@@ -88,7 +95,7 @@ int main(int argc, char **argv)
             pauseTime = (int)strtol(optarg, (char **)NULL, 10);
             break;
         case '?':
-            helpDisplay();
+            helpDisplay_client();
             return 0;
         default:
             break;
@@ -98,7 +105,7 @@ int main(int argc, char **argv)
     if ((serverPID && signalNum && bookNum && pauseTime) == 0)
     {
         printf("Need all arguments\n");
-        helpDisplay();
+        helpDisplay_client();
         return 1;
     }
     else
@@ -106,8 +113,8 @@ int main(int argc, char **argv)
         printf("\n\nPID: %d, Signal: %d, Num: %d, Pause: %d", serverPID, signalNum, bookNum, pauseTime);
     }
 
-
-
+    // Dynamic signal handler
+    serverResponseSignal_create(signalNum); 
 
 
 
@@ -117,25 +124,12 @@ int main(int argc, char **argv)
 
     // Send SIGNAL with DATA
     union sigval sv;
-    sv.sival_int = convertInput(signalNum, bookNum, 'l', pauseTime);
+    sv.sival_int = codeDataFrame_client(signalNum, bookNum, 'l', pauseTime);
     sigqueue(serverPID, SIGRTMIN + 11, sv);
 
     pause();
+    pause();
+    pause();
 
     return 0;
-}
-
-
-/**
- * Convert input to data to send
- */
-int convertInput (int code, int book, char part, int time){
-
-    unsigned char bitA = (unsigned char)code;
-    unsigned char bitB = (unsigned char)book;
-    unsigned char bitC = part;
-    unsigned char bitD = (unsigned char)time;
-    const unsigned char buf[4] = { bitA, bitB, bitC, bitD };
-    const uint32_t dataFrame = (buf[0]) | (buf[1] << 8) | (buf[2] << 16) | (buf[3] << 24);
-    return dataFrame;
 }

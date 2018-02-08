@@ -4,7 +4,6 @@
 #include <fcntl.h>
 #include <time.h>
 #include <signal.h>
-
 #include <stdlib.h>
 #include <limits.h>
 #include <getopt.h>
@@ -14,42 +13,51 @@
 #include <sys/signalfd.h>
 #include <sys/socket.h>
 
+#include "common.h"
+
 int filedesc;
 struct signalfd_siginfo fdsi;
 
-/**
- * Display help when run with wrong options or -h/--help
-    Serwer:
-    -k <katalog> katalog, w którym są przechowywane pliki do udostępniania,
-    -p <plik> ścieżka do pliku pełniącego rolę tablicy ogłoszeniowej.
- */
-void helpDisplay()
-{
-    printf("\nSerwer:\n\t-k <katalog> katalog, w którym są przechowywane pliki do udostępniania\n\t-p <plik> ścieżka do pliku pełniącego rolę tablicy ogłoszeniowej.\n\n");
-}
+
 
 void clientRegisterSignal_handler(int signum, siginfo_t *siginfo, void *ptrVoid)
 {
     unsigned int clientPID = siginfo->si_pid; // Get PID of signal sender
-    //union sigval valueStruct = siginfo->si_value;
     unsigned int clientValue = siginfo->si_value.sival_int; // Get client value
 
     printf("PID-->\t%d\nVALUE-->%08x\n ", clientPID, clientValue);
 
-    unsigned char bytes[4];
-    bytes[0] = (clientValue >> 24) & 0xFF;
-    bytes[1] = (clientValue >> 16) & 0xFF;
-    bytes[2] = (clientValue >> 8) & 0xFF;
-    bytes[3] = clientValue & 0xFF;
-    printf("%x %x %x %x\n", bytes[0], bytes[1], bytes[2], bytes[3]);
+    // Decode data frame
+    unsigned char clientData[4];
+    decodeDataFrame_server(clientData,clientValue);
+    printf("%d %d %d %d\n", clientData[0], clientData[1], clientData[2], clientData[3]);
 
+    /**
+     * TODO: REGISTER USER
+     *  -------------------------
+     * 
+     *  
+     * 
+     * 
+     *  ------------------------- 
+     */
+
+    int registerStatus=1;
+    int pathSize=2;
+    int pathPointer=1;
+
+    // Send SIGNAL with DATA
+    union sigval sv;
+    sv.sival_int = codeDataFrame_server(registerStatus, pathSize, pathPointer);
+    sigqueue(clientPID, SIGRTMIN + clientData[0], sv); // Respons signal must be RT Signal
+
+    // Write socket adres to info file
     char socketPath[12];
     sprintf(socketPath, "SOCK_%d\n", clientPID);
-
     if (write(filedesc, &socketPath, sizeof(socketPath)) <= 0)
-    {
         perror("write");
-    }
+
+
 }
 
 void clientRegisterSignal_create()
@@ -58,11 +66,8 @@ void clientRegisterSignal_create()
     memset(&clSig, '\0', sizeof(clSig));
     clSig.sa_flags = SA_SIGINFO;
     clSig.sa_sigaction = clientRegisterSignal_handler;
-
     if ((sigaction(SIGRTMIN + 11, &clSig, NULL)) == -1)
-    {
         perror("sigaction");
-    }
 }
 
 // *************************************************************
@@ -103,10 +108,10 @@ int main(int argc, char **argv)
             checkArgs++;
             break;
         case 'h':
-            helpDisplay();
+            helpDisplay_server();
             return 0;
         case '?':
-            helpDisplay();
+            helpDisplay_server();
             return 0;
         default:
             break;
@@ -116,7 +121,7 @@ int main(int argc, char **argv)
     if (checkArgs != 2)
     {
         printf("Need all arguments\n");
-        helpDisplay();
+        helpDisplay_server();
         return 1;
     }
     else
