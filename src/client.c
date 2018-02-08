@@ -4,7 +4,6 @@
 #include <fcntl.h>
 #include <time.h>
 #include <signal.h>
-
 #include <stdlib.h>
 #include <limits.h>
 #include <getopt.h>
@@ -13,11 +12,15 @@
 #include <errno.h>
 #include <sys/un.h>
 #include <sys/socket.h>
-
 #include <stdint.h> // int32_t
+
+
+#include "common.h"
+
 
 #define SV_SOCK_PATH "/tmp/us_xfr"
 #define BUF_SIZE 100
+
 
 /**
  * Display help when run with wrong options or -h/--help
@@ -27,10 +30,10 @@
     -x <nr> numer księgi, którą ma odczytać,
     -p <czas> długość interwału pomiędzy komunikatami.
  */
-void helpDisplay()
+/*void helpDisplay()
 {
     printf("\nKlient:\n\t-s <pid> PID procesu serwera\n\t-r <sygnał> numer sygnału RT, który ma być zastosowany przy komunikacie zwrotnym\n\t-x <nr> numer księgi, którą ma odczytać\n\t-p <czas> długość interwału pomiędzy komunikatami\n\n\n");
-}
+}*/
 
 
 int convertInput (int code, int book, char part, int time);
