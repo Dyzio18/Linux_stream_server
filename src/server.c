@@ -16,6 +16,7 @@
 #include "common.h"
 
 int filedesc;
+
 struct signalfd_siginfo fdsi;
 
 
@@ -25,7 +26,7 @@ void clientRegisterSignal_handler(int signum, siginfo_t *siginfo, void *ptrVoid)
     unsigned int clientPID = siginfo->si_pid; // Get PID of signal sender
     unsigned int clientValue = siginfo->si_value.sival_int; // Get client value
 
-    printf("PID-->\t%d\nVALUE-->%08x\n ", clientPID, clientValue);
+    printf("PID: %d\nValue: %08x\n ", clientPID, clientValue);
 
     // Decode data frame
     unsigned char clientData[4];
@@ -36,26 +37,35 @@ void clientRegisterSignal_handler(int signum, siginfo_t *siginfo, void *ptrVoid)
      * TODO: REGISTER USER
      *  -------------------------
      * 
-     *  
-     * 
+     *      try create socket
+     *      
      * 
      *  ------------------------- 
      */
 
     int registerStatus=1;
-    int pathSize=2;
-    int pathPointer=1;
+    int pathSize=12;
+    int pathPointer=0;
+
+    // Get offset 
+    pathPointer = lseek(filedesc, pathPointer, SEEK_CUR);
+    printf("\n\t*ptr-->%d\n",pathPointer);
+
+
+    // Write socket adres to info file
+    char socketPath[12];
+    sprintf(socketPath, "SOCK_%d\n", clientPID);
+    if (write(filedesc, &socketPath, sizeof(socketPath)) <= 0)
+    {
+        perror("write");
+        registerStatus = 0;
+    }
 
     // Send SIGNAL with DATA
     union sigval sv;
     sv.sival_int = codeDataFrame_server(registerStatus, pathSize, pathPointer);
     sigqueue(clientPID, SIGRTMIN + clientData[0], sv); // Respons signal must be RT Signal
 
-    // Write socket adres to info file
-    char socketPath[12];
-    sprintf(socketPath, "SOCK_%d\n", clientPID);
-    if (write(filedesc, &socketPath, sizeof(socketPath)) <= 0)
-        perror("write");
 
 
 }

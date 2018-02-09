@@ -43,10 +43,12 @@ int codeDataFrame_client (int code, int book, char part, int time){
 }
 
 int codeDataFrame_server (int status, int size, int pointer){
-    // TODO
-
-
-    return status;
+    unsigned char bitA = (unsigned char)status;
+    unsigned char bitB = (unsigned char)size;
+    unsigned char bitC = (short int)pointer;
+    const unsigned char buf[3] = { bitA, bitB, bitC};
+    const uint32_t dataFrame = ((buf[0]) | (buf[1] << 8) | (buf[2] << 16));
+    return dataFrame;
 }
 
 void decodeDataFrame_server(unsigned char *dataArr, int value){
@@ -56,7 +58,8 @@ void decodeDataFrame_server(unsigned char *dataArr, int value){
     dataArr[0] = value & 0xFF;
 }
 
-void decodeDataFrame_client(unsigned char *dataArr, int value){
-    // TODO
-
+short int decodeDataFrame_client(unsigned char *dataArr, int value){
+    dataArr[1] = (value >> 8) & 0xFF;
+    dataArr[0] = value & 0xFF;
+    return (short int)(value >> 16) & 0xFF;
 }
