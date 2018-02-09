@@ -37,18 +37,17 @@ void serverResponseSignal_handler(int signum, siginfo_t *siginfo, void *ptrVoid)
     unsigned char serverData[2];
     short int offset = 0;
     offset = decodeDataFrame_client(serverData,serverValue);
-   // printf("\n%d %d %d\n", serverData[0], serverData[1], offset);
+    printf("\nResponse_status:%d path_size:%d offset:%d\n", serverData[0], serverData[1], offset);
 
     // Read path from info file (if register succes)
     if (serverData[0] == 1)
     {
         char socketPath[serverData[1]]; 
         read(filedesc, socketPath, sizeof(socketPath[0])*serverData[1]);
-     //   printf("\nPATH:%s",socketPath);
+        printf("\nPATH:%s",socketPath);
     }
 
     REGISTER_FLAG=1;
-    printf("-------------// %d", REGISTER_FLAG);
 }
 
 void serverResponseSignal_create(int sigNum)
@@ -166,10 +165,10 @@ int main(int argc, char **argv)
 
 
     while (1) {
-            // Wait for server response
-        printf("\n\tprzed**%d",REGISTER_FLAG);
+        // Wait for server response
         pause(); 
-        printf("\n\tpo**%d",REGISTER_FLAG);
+
+
     }
 
     pause(); 

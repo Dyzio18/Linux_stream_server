@@ -12,45 +12,77 @@
 #include <errno.h>
 #include <sys/signalfd.h>
 #include <sys/socket.h>
+#include <pthread.h>
 
 #include "common.h"
 
 int filedesc;
 
 struct signalfd_siginfo fdsi;
+struct threadData {
+    int clientPID;
+    int book;
+    char fragmentation;
+    int interval;
+    char *path;
+};
+
+
+/*****************************************
+ *              THREAD                   *
+ *****************************************/
+void *clientThread_handler(void *thread_arg)
+{
+    struct threadData *myData;
+    myData = (struct threadData *) thread_arg;
+    struct sockaddr_un
+    {
+        sa_family_t sun_family;
+        char sun_path[108];
+    };
+
+    char *SOCKNAME = "\0q7xcw";
+    struct sockaddr_un addr;
+    int socketFd = socket(AF_UNIX, SOCK_DGRAM, 0);                   /* Create SOCKET */
+    memset(&addr, 0, sizeof(struct sockaddr_un));                    /* Clear structure */
+    addr.sun_family = AF_UNIX;                                       /* UNIX domain address */
+    strncpy(&addr.sun_path[1], SOCKNAME, sizeof(addr.sun_path) - 2); /* Abstract namespace */
+    if (bind(socketFd, (struct sockaddr *)&addr, sizeof(struct sockaddr_un)) == -1)
+        perror("bind");
 
 
 
+
+
+    printf("Connected successfully client:%d\n", myData->clientPID);
+    for(int i = 0; i <= 4; i++)
+    {
+        printf("\nThread:%d | i:%d \n", pthread_self(),i);
+        sleep(5);
+    }
+
+}
+
+/*****************************************
+ *         REAL TIME SIGNAL              *
+ *****************************************/
 void clientRegisterSignal_handler(int signum, siginfo_t *siginfo, void *ptrVoid)
 {
-    unsigned int clientPID = siginfo->si_pid; // Get PID of signal sender
+    unsigned int clientPID = siginfo->si_pid;               // Get PID of signal sender
     unsigned int clientValue = siginfo->si_value.sival_int; // Get client value
-
-    printf("PID: %d\nValue: %08x\n ", clientPID, clientValue);
-
+    printf("Client (PID: %d) send signal with value: %08x\n", clientPID, clientValue);
     // Decode data frame
     unsigned char clientData[4];
-    decodeDataFrame_server(clientData,clientValue);
-    printf("%d %d %d %d\n", clientData[0], clientData[1], clientData[2], clientData[3]);
+    decodeDataFrame_server(clientData, clientValue);
+    printf("\tsignal:%d book:%d fragmentation:%d time interval:%d\n\n", clientData[0], clientData[1], clientData[2], clientData[3]);
 
-    /**
-     * TODO: REGISTER USER
-     *  -------------------------
-     * 
-     *      try create socket
-     *      
-     * 
-     *  ------------------------- 
-     */
+    int registerStatus = 1;
+    int pathSize = 12;
+    int pathPointer = 0;
 
-    int registerStatus=1;
-    int pathSize=12;
-    int pathPointer=0;
-
-    // Get offset 
+    // Get offset
     pathPointer = lseek(filedesc, pathPointer, SEEK_CUR);
-    printf("\n\t*ptr-->%d\n",pathPointer);
-
+    printf("\n\t*ptr-->%d\n", pathPointer);
 
     // Write socket adres to info file
     char socketPath[12];
@@ -61,11 +93,37 @@ void clientRegisterSignal_handler(int signum, siginfo_t *siginfo, void *ptrVoid)
         registerStatus = 0;
     }
 
+
+    /**
+     * TODO: REGISTER USER
+     *  -------------------------
+     */
+
+    struct threadData currUser;
+    currUser.clientPID = clientPID;
+    currUser.book = clientData[1];
+    currUser.fragmentation = clientData[2];
+    currUser.interval = clientData[3];
+
+    int socket_desc, new_socket, c, *new_sock, i;
+    pthread_t client_thread;
+
+    if (pthread_create(&client_thread, NULL, clientThread_handler, &currUser) < 0)
+    {
+        perror("pthread_create");
+        registerStatus = 0;
+    }
+    sleep(3);
+
+    /*      try create socket
+     *  ------------------------- 
+     */
+
+
     // Send SIGNAL with DATA
     union sigval sv;
     sv.sival_int = codeDataFrame_server(registerStatus, pathSize, pathPointer);
     sigqueue(clientPID, SIGRTMIN + clientData[0], sv); // Respons signal must be RT Signal
-
 
 
 }
@@ -155,25 +213,8 @@ int main(int argc, char **argv)
     // *************************************************************
     //                            SOCKET
     // *************************************************************
-    struct sockaddr_un
-    {
-        sa_family_t sun_family;
-        char sun_path[108];
-    };
 
-    const char *SOCKNAME = "q7xcw";
-    struct sockaddr_un addr;
 
-    /** TODO:
- *   [X] - create SOCKET 
- *   [ ] - generate random socket path name
- */
-    int socketFd = socket(AF_UNIX, SOCK_DGRAM, 0);                   /* Create SOCKET */
-    memset(&addr, 0, sizeof(struct sockaddr_un));                    /* Clear structure */
-    addr.sun_family = AF_UNIX;                                       /* UNIX domain address */
-    strncpy(&addr.sun_path[1], SOCKNAME, sizeof(addr.sun_path) - 2); /* Abstract namespace */
-    if (bind(socketFd, (struct sockaddr *)&addr, sizeof(struct sockaddr_un)) == -1)
-        perror("bind");
 
     int serverLoop = 1;
     while (serverLoop)
