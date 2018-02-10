@@ -189,7 +189,6 @@ int main(int argc, char **argv)
     char clientAddr_path[MAX_PATH];
     char *pathUniq = "cli";
     snprintf(clientAddr_path, sizeof(char)*(MAX_PATH+5) , "%s%s", SV_SOCK_PATH, pathUniq);
-    //printf("--> %s",clientAddr_path);//DEBUG
     strcpy(client_address.sun_path, clientAddr_path);
     client_address.sun_path[0] = 0; // Abstract namespace
 
@@ -208,9 +207,7 @@ int main(int argc, char **argv)
     while(REGISTER_FLAG)
     {
         bytes_sent = sendto(socket_fd, &integer_buffer, sizeof(integer_buffer), 0, (struct sockaddr *)&server_address, address_length);
-
         bytes_received = recvfrom(socket_fd, &integer_buffer, sizeof(integer_buffer), 0, (struct sockaddr *)&server_address, &address_length);
-
         if (bytes_received != sizeof(integer_buffer)) {
             printf("Error: recvfrom - %d.\n", bytes_received);
         }
