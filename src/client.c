@@ -18,6 +18,8 @@
 
 #define BUF_SIZE 10
 #define MAX_PATH 16
+#define LINE 256
+#define WORD 24
 
 int REGISTER_FLAG = 0;
 struct signalfd_siginfo fdsi;
@@ -233,9 +235,11 @@ int main(int argc, char **argv)
     printf("\n\nSTART READING FROM SERVER ...\n\n");
     int INITIALIZATION_FLAG = 1; // Send first msg with PID to authorize reguest
     char msg;
+    char lineBuff[LINE];
+    char wordBuff[WORD];
 
-    printf(" \nSOCKET--> %s",socketPath);
-    printf(" SOCKET (client)--> %s\n",clientAddr_path);
+    // printf(" \nSOCKET--> %s",socketPath);
+    // printf(" SOCKET (client)--> %s\n",clientAddr_path);
     sleep(1);
 
     while (REGISTER_FLAG)
@@ -248,22 +252,37 @@ int main(int argc, char **argv)
                 perror("sendto");
             }
             INITIALIZATION_FLAG = 0;
-            //char *info = "\nInitialization message send...";
-            // write(STDOUT_FILENO, &info, sizeof(info));
         }
         else
         {
             if (fragmentation == 'l')
             {
-                /* SEND ROW ... */
+                /* LINE */
+                bytes_received = recvfrom(socket_fd, lineBuff, sizeof(char) * LINE, 0, (struct sockaddr *)&server_address, &address_length);
+                if (bytes_received != sizeof(char) * LINE)
+                {
+                    printf("Error: recvfrom - %d.\n", bytes_received);
+                }
+                // write(STDOUT_FILENO, lineBuff, sizeof(char)*LINE );
+                printf("%s", lineBuff);
+                rot13_arr(lineBuff, lineBuff, LINE);
+                bytes_sent = sendto(socket_fd, lineBuff, sizeof(char) * LINE, 0, (struct sockaddr *)&server_address, address_length);
             }
             else if (fragmentation == 's')
             {
-                /* SEND WORD ... */
+                /* WORD */
+                bytes_received = recvfrom(socket_fd, wordBuff, sizeof(char) * WORD, 0, (struct sockaddr *)&server_address, &address_length);
+                if (bytes_received != sizeof(char) * WORD)
+                {
+                    printf("Error: recvfrom - %d.\n", bytes_received);
+                }
+                write(STDOUT_FILENO, wordBuff, sizeof(char) * WORD);
+                rot13_arr(wordBuff, wordBuff, WORD);
+                bytes_sent = sendto(socket_fd, wordBuff, sizeof(char) * WORD, 0, (struct sockaddr *)&server_address, address_length);
             }
             else
             {
-                /* SEND LETTER */
+                /* LETTER */
                 bytes_received = recvfrom(socket_fd, &msg, sizeof(msg), 0, (struct sockaddr *)&server_address, &address_length);
                 if (bytes_received != sizeof(msg))
                 {
@@ -277,7 +296,6 @@ int main(int argc, char **argv)
         }
         //printf("\nSEND: %d RECV: %d\n", bytes_sent, bytes_received);
     }
-
     close(socket_fd);
     return 0;
 }

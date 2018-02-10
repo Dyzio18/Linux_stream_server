@@ -96,4 +96,26 @@ int rot13b(int c, int basis)
     return c;
 }
 
+void rot13_arr(char *origin, char *check, int len)
+{
+    int next = 1;
+    for(int i = 0; i<len && next == 1; i++)
+    {
+        if(origin[i+1] == '\0' || origin[i+1] == '\n')
+            next = 0;
+        check[i] = rot13(origin[i]);
+    }
+}
 
+int rot13_arr_check(char *origin, char *check, int len)
+{
+    int next = 1;
+    for(int i = 0; i<len && next == 1; i++)
+    {
+        if( (origin[i+1] == '\0') || (origin[i+1] == '\n') )
+            next = 0;
+        if (rot13(check[i]) != origin[i])
+            return 0;
+    }
+    return 1;
+}

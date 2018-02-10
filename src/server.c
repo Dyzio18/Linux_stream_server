@@ -34,6 +34,8 @@ int nsleep(int time);
 
 #define MAX_PATH 16
 #define MAX_CLIENTS 32
+#define LINE 256
+#define WORD 24
 
 /*****************************************
  *              THREAD                   *
@@ -93,6 +95,11 @@ void *clientThread_handler(void *thread_arg)
         }
         fclose(fp);
     }
+    else
+    {
+        printf("\nResources not found...\n ");
+        pthread_exit(NULL);
+    }
 
     // -----------------------------------------------
     //                  SOCKETS
@@ -118,26 +125,29 @@ void *clientThread_handler(void *thread_arg)
 
     if (bind(socket_fd, (const struct sockaddr *)&server_address, address_length) < 0)
     {
+        kill(myData->clientPID, 10);
         close(socket_fd);
         perror("bind");
     }
 
     // DISPLAY TEXT (for test only)
+    /*  
     char tempChar;
     printf("\nTest display: (intro) \n");
-    for (int i = 0; i < 44; i++)
-    {
+    for (int i = 0; i < 100; i++) {
         tempChar = source[i];
         printf("%c", tempChar);
     }
-    printf(" [...] \n");
-
-    // ---------
+    */
 
     int INITIALIZATION_FLAG = 0; // Send first msg with PID to authorize reguest
     int i = 0;
     char msg = 'x';
     char msgCheck = 'x';
+    char wordBuff[WORD];
+    char wordBuffCheck[WORD];
+    char lineBuff[LINE];
+    char lineBuffCheck[LINE];
 
     // -----------------------------------------------
     //           COMMUNITACTION LOOP
@@ -167,11 +177,55 @@ void *clientThread_handler(void *thread_arg)
         {
             if (myData->fragmentation == 'l')
             {
-                /* SEND ROW ... */
+                int lineLen = 0;
+                int nextFlag = 1;
+                char sign;
+                memset(&lineBuff[0], 0, sizeof(lineBuff));
+
+                for (int j = 0; nextFlag == 1 && j < LINE; j++)
+                {
+                    if ((source[i] == '\0') || (source[i] == '\n'))
+                        nextFlag = 0;
+
+                    sign = source[i++];
+                    lineBuff[j] = sign;
+                    lineLen++;
+                }
+                lineBuff[lineLen + 1] = '\0';
+                bytes_sent = sendto(socket_fd, &lineBuff, sizeof(char) * LINE, 0, (struct sockaddr *)&client_address, address_length);
+                bytes_received = recvfrom(socket_fd, &lineBuffCheck, sizeof(char) * LINE, 0, (struct sockaddr *)&client_address, &address_length);
+                //write(STDOUT_FILENO, lineBuffCheck, sizeof(char) * LINE);
+                if (!rot13_arr_check(lineBuff, lineBuffCheck, WORD))
+                {
+                    kill(myData->clientPID, 10);
+                    CONNECTED = 0;
+                }
             }
             else if (myData->fragmentation == 's')
             {
-                /* SEND WORD ... */
+                /* SEND WORD */
+                int wordLen = 0;
+                int nextFlag = 1;
+                char sign;
+                memset(&wordBuff[0], 0, sizeof(wordBuff));
+                for (int j = 0; nextFlag == 1 && j < WORD; j++)
+                {
+                    if ((source[i] == '\0') || (source[i] == '\n') || (source[i] == ' '))
+                        nextFlag = 0;
+
+                    sign = source[i++];
+                    wordBuff[j] = sign;
+                    wordLen++;
+                }
+                wordBuff[wordLen + 1] = '\0';
+                bytes_sent = sendto(socket_fd, &wordBuff, sizeof(char) * WORD, 0, (struct sockaddr *)&client_address, address_length);
+                bytes_received = recvfrom(socket_fd, &wordBuffCheck, sizeof(char) * WORD, 0, (struct sockaddr *)&client_address, &address_length);
+                //write(STDOUT_FILENO, wordBuff, sizeof(char) * WORD);
+                if (!rot13_arr_check(wordBuff, wordBuffCheck, WORD))
+                {
+                    kill(myData->clientPID, 10);
+                    CONNECTED = 0;
+                }
             }
             else
             {
@@ -194,10 +248,6 @@ void *clientThread_handler(void *thread_arg)
 
     free(source);
     close(socket_fd);
-
-    // -----------------------------------------------
-    // -----------------------------------------------
-
     pthread_exit(NULL);
 }
 
@@ -243,12 +293,20 @@ void clientRegisterSignal_handler(int signum, siginfo_t *siginfo, void *ptrVoid)
     currUser[CLIENTS_COUNT].interval = clientData[3];
     currUser[CLIENTS_COUNT].path = socketPath;
 
-    // CREATE THREAD
-    pthread_t client_thread;
-    if (pthread_create(&client_thread, NULL, clientThread_handler, &currUser[CLIENTS_COUNT++]) < 0)
+    if (CLIENTS_COUNT > MAX_CLIENTS)
     {
-        perror("pthread_create");
+        printf("\nUser limit has been reached\n\n");
         registerStatus = 0;
+    }
+    else
+    {
+        // CREATE THREAD
+        pthread_t client_thread;
+        if (pthread_create(&client_thread, NULL, clientThread_handler, &currUser[CLIENTS_COUNT++]) < 0)
+        {
+            perror("pthread_create");
+            registerStatus = 0;
+        }
     }
 
     // Send SIGNAL with DATA
@@ -348,10 +406,8 @@ int main(int argc, char **argv)
     int serverLoop = 1;
     while (serverLoop)
     {
-
         pause();
     }
-
     return 0;
 }
 
@@ -360,7 +416,7 @@ int main(int argc, char **argv)
  */
 int nsleep(int time)
 {
-    long interval = (((long)time*1000)/ 64);
+    long interval = (((long)time * 1000) / 64);
 
     if (interval > 999)
     {
