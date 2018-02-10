@@ -18,4 +18,3 @@ short int decodeDataFrame_client(unsigned char *dataArr, int value);
 
 int rot13(int c);
 int rot13b(int c, int basis);
-

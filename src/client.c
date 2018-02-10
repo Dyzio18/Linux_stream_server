@@ -16,9 +16,8 @@
 
 #include "common.h"
 
-//#define SV_SOCK_PATH "/tmp/us_xfr"
 #define BUF_SIZE 10
-#define MAX_PATH 12
+#define MAX_PATH 16
 
 int REGISTER_FLAG = 0;
 struct signalfd_siginfo fdsi;
@@ -33,7 +32,7 @@ void serverResponseSignal_handler(int signum, siginfo_t *siginfo, void *ptrVoid)
 {
     unsigned int hostPID = siginfo->si_pid;                 // Get PID of signal sender
     unsigned int serverValue = siginfo->si_value.sival_int; // Get client value
-    printf("\nServer_DATA::\nPID: %d\nValue: %08x\n ", hostPID, serverValue);
+    printf("\nSERVER: PID: %d value: %08x ", hostPID, serverValue);
 
     // Read and convert data from signal
     unsigned char serverData[2];
@@ -49,6 +48,10 @@ void serverResponseSignal_handler(int signum, siginfo_t *siginfo, void *ptrVoid)
             perror("read");
         //sprintf(socketPath, "SOCK_%d\n", getpid());
     }
+    else
+    {
+        printf("\n\nCan\'t connect with server ...\n\n");
+    }
     REGISTER_FLAG = 1;
 }
 
@@ -63,6 +66,23 @@ void serverResponseSignal_create(int sigNum)
         perror("sigaction");
 }
 
+void serverBrokeSignal_handler(int signum, siginfo_t *siginfo, void *ptrVoid)
+{
+    printf("\nLost connection with server...\n");
+    exit(1);
+}
+
+void serverBrokeSignal_create()
+{
+    struct sigaction clSig;
+    memset(&clSig, '\0', sizeof(clSig));
+    clSig.sa_flags = SA_SIGINFO;
+    clSig.sa_sigaction = serverBrokeSignal_handler;
+
+    if ((sigaction(10, &clSig, NULL)) == -1)
+        perror("sigaction");
+}
+
 // *************************************************************
 // *************************************************************
 //                           MAIN
@@ -70,12 +90,12 @@ void serverResponseSignal_create(int sigNum)
 // *************************************************************
 int main(int argc, char **argv)
 {
-
+    // Value from user (some default)
     int serverPID = 0;
-    int signalNum = 0;
-    int bookNum = 0;
-    int pauseTime = 0;
-    char fragmentation = 'l';
+    int signalNum = 10;
+    int bookNum = 44;
+    int pauseTime = 64;
+    char fragmentation = 'z';
     char *infoFile;
 
     // *************************************************************
@@ -148,6 +168,8 @@ int main(int argc, char **argv)
         return -1;
     }
 
+    // Server error handler
+    serverBrokeSignal_create();
     // Dynamic signal handler
     serverResponseSignal_create(signalNum);
 
@@ -172,7 +194,6 @@ int main(int argc, char **argv)
         sleep(1);
     }
 
-
     char *SV_SOCK_PATH = socketPath;
     int socket_fd;
     struct sockaddr_un server_address, client_address;
@@ -180,7 +201,8 @@ int main(int argc, char **argv)
     int bytes_sent = 0;
     socklen_t address_length = sizeof(struct sockaddr_un);
 
-    if ((socket_fd = socket(AF_UNIX, SOCK_DGRAM, 0)) < 0) {
+    if ((socket_fd = socket(AF_UNIX, SOCK_DGRAM, 0)) < 0)
+    {
         perror("socket");
     }
 
@@ -189,11 +211,12 @@ int main(int argc, char **argv)
     client_address.sun_family = AF_UNIX;
     char clientAddr_path[MAX_PATH];
     char *pathUniq = "cli";
-    snprintf(clientAddr_path, sizeof(char)*(MAX_PATH+5) , "%s%s", SV_SOCK_PATH, pathUniq);
+    snprintf(clientAddr_path, sizeof(char) * (MAX_PATH + 5), "%s%s", SV_SOCK_PATH, pathUniq);
     strcpy(client_address.sun_path, clientAddr_path);
     client_address.sun_path[0] = 0; // Abstract namespace
 
-    if (bind(socket_fd, (const struct sockaddr *)&client_address, address_length) < 0){
+    if (bind(socket_fd, (const struct sockaddr *)&client_address, address_length) < 0)
+    {
         perror("bind");
     }
 
@@ -211,25 +234,48 @@ int main(int argc, char **argv)
     int INITIALIZATION_FLAG = 1; // Send first msg with PID to authorize reguest
     char msg;
 
-    while(REGISTER_FLAG)
+    printf(" \nSOCKET--> %s",socketPath);
+    printf(" SOCKET (client)--> %s\n",clientAddr_path);
+    sleep(1);
+
+    while (REGISTER_FLAG)
     {
-        if (INITIALIZATION_FLAG) {
-            bytes_sent = sendto(socket_fd, &clientPID, sizeof((int)clientPID), 0, (struct sockaddr *)&server_address, address_length);
-            INITIALIZATION_FLAG = 0;
-            printf("\n Initialization message send...");
-        }
-        else {
-            bytes_received = recvfrom(socket_fd, &msg, sizeof(msg), 0, (struct sockaddr *)&server_address, &address_length);
-            if (bytes_received != sizeof(msg)) {
-                printf("Error: recvfrom - %d.\n", bytes_received);
+        if (INITIALIZATION_FLAG)
+        {
+            bytes_sent = sendto(socket_fd, &clientPID, sizeof(clientPID), 0, (struct sockaddr *)&server_address, address_length);
+            if (bytes_sent <= 0)
+            {
+                perror("sendto");
             }
-            //printf("%c", msg);
-            write(STDOUT_FILENO, &msg, sizeof(msg));
-
-            bytes_sent = sendto(socket_fd, &msg, sizeof(msg), 0, (struct sockaddr *)&server_address, address_length);
+            INITIALIZATION_FLAG = 0;
+            //char *info = "\nInitialization message send...";
+            // write(STDOUT_FILENO, &info, sizeof(info));
         }
-
-        //printf("\nSEND: %d RECV: %d\n",bytes_sent, bytes_received);
+        else
+        {
+            if (fragmentation == 'l')
+            {
+                /* SEND ROW ... */
+            }
+            else if (fragmentation == 's')
+            {
+                /* SEND WORD ... */
+            }
+            else
+            {
+                /* SEND LETTER */
+                bytes_received = recvfrom(socket_fd, &msg, sizeof(msg), 0, (struct sockaddr *)&server_address, &address_length);
+                if (bytes_received != sizeof(msg))
+                {
+                    printf("Error: recvfrom - %d.\n", bytes_received);
+                }
+                //printf("%c", msg);
+                write(STDOUT_FILENO, &msg, sizeof(msg));
+                msg = rot13(msg);
+                bytes_sent = sendto(socket_fd, &msg, sizeof(msg), 0, (struct sockaddr *)&server_address, address_length);
+            }
+        }
+        //printf("\nSEND: %d RECV: %d\n", bytes_sent, bytes_received);
     }
 
     close(socket_fd);

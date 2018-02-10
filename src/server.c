@@ -13,13 +13,15 @@
 #include <sys/signalfd.h>
 #include <sys/socket.h>
 #include <pthread.h>
-
+#include <time.h>
 #include "common.h"
 
 int filedesc;
 char *catalog;
+int CLIENTS_COUNT = 0;
 
 struct signalfd_siginfo fdsi;
+struct timespec req, rem;
 struct threadData
 {
     int clientPID;
@@ -28,8 +30,10 @@ struct threadData
     int interval;
     char *path;
 };
+int nsleep(int time);
 
-#define MAX_PATH 20
+#define MAX_PATH 16
+#define MAX_CLIENTS 32
 
 /*****************************************
  *              THREAD                   *
@@ -45,53 +49,56 @@ void *clientThread_handler(void *thread_arg)
         char sun_path[108];
     };
 
+    char sourcePath[128];
+    snprintf(sourcePath, sizeof(sourcePath), "%s%d.txt", catalog, myData->book);
+    printf("-->%s", sourcePath);
+
     // -----------------------------------------------
     //                  LOAD EXPECTED BOOK
     // -----------------------------------------------
     char *source = NULL;
-    FILE *fp = fopen("store/Pan_Tadeusz/0.txt", "r");
+    FILE *fp = fopen(sourcePath, "r");
 
     long bufsize;
     if (fp != NULL)
     {
-        /* Go to the end of the file. */
+        // Check end of the file
         if (fseek(fp, 0L, SEEK_END) == 0)
         {
-            /* Get the size of the file. */
+            // Get the size of the file
             bufsize = ftell(fp);
-            if (bufsize == -1) {
+            if (bufsize == -1)
+            {
                 perror("ftell");
             }
 
-            /* Allocate our buffer to that size. */
+            // Allocate buffer to file size
             source = (char *)malloc(sizeof(char) * (bufsize + 1));
-
-            /* Go back to the start of the file. */
-            if (fseek(fp, 0L, SEEK_SET) != 0) {
+            // Go back to the start of the file.
+            if (fseek(fp, 0L, SEEK_SET) != 0)
+            {
                 perror("fseek");
             }
 
-            /* Read the entire file into memory. */
+            // Read the entire file into memory
             size_t newLen = fread(source, sizeof(char), bufsize, fp);
-            if (ferror(fp) != 0) {
+            if (ferror(fp) != 0)
+            {
                 fputs("Error reading file", stderr);
             }
-            else {
-                source[newLen++] = '\0'; /* Just to be safe. */
+            else
+            {
+                source[newLen++] = '\0';
             }
         }
         fclose(fp);
     }
-
-
 
     // -----------------------------------------------
     //                  SOCKETS
     // -----------------------------------------------
 
     char *SV_SOCK_PATH = myData->path;
-    //printf("\n:::%s\n", SV_SOCK_PATH);
-
     int socket_fd;
     struct sockaddr_un server_address, client_address;
     int bytes_received = 0;
@@ -115,50 +122,74 @@ void *clientThread_handler(void *thread_arg)
         perror("bind");
     }
 
-
     // DISPLAY TEXT (for test only)
-        char tempChar;
-        for (int i = 0; i < bufsize; i++)
-        {
-            tempChar =  source[i];
-            printf("%c",tempChar);
-        }
-    // ---------
+    char tempChar;
+    printf("\nTest display: (intro) \n");
+    for (int i = 0; i < 44; i++)
+    {
+        tempChar = source[i];
+        printf("%c", tempChar);
+    }
+    printf(" [...] \n");
 
+    // ---------
 
     int INITIALIZATION_FLAG = 0; // Send first msg with PID to authorize reguest
     int i = 0;
     char msg = 'x';
-    
+    char msgCheck = 'x';
+
     // -----------------------------------------------
     //           COMMUNITACTION LOOP
     // -----------------------------------------------
     while (CONNECTED)
     {
         // CHECK FIRST MSG WITH CLIENT PID
-        if (INITIALIZATION_FLAG == 0) {
+        if (INITIALIZATION_FLAG == 0)
+        {
             bytes_received = recvfrom(socket_fd, &INITIALIZATION_FLAG, sizeof(INITIALIZATION_FLAG), 0, (struct sockaddr *)&client_address, &address_length);
-            if (INITIALIZATION_FLAG == myData->clientPID) {           
-                printf("\n\nCLIENT with PID %d authorized\n",INITIALIZATION_FLAG);
+            if (INITIALIZATION_FLAG == myData->clientPID)
+            {
+                printf("\n\nCLIENT with PID %d authorized\n", INITIALIZATION_FLAG);
+
+                /*  TODO:   Tutaj moge uruchomić timer co "interval" 
+                    EDIT:   Wykonałem to na nanosleep wiec juz nieaktualne...
+                            ...ale gdybym zrobił pisanie na timerach to tutaj zainicjowałbym timer i wyzwalał zapisywanie do socketa.
+                */
             }
-            else {
+            else
+            {
                 printf("\n\nCLIENT with PID %d cannot be authorized\n", myData->clientPID);
                 CONNECTED = 0;
             }
-            printf("\n\n**Init succes*\n\n");
         }
-        else {
-            // SEND
-            msg = source[i++];
-            //printf("%c", msg);
-            write(STDOUT_FILENO, &msg, sizeof(msg));
-            bytes_sent = sendto(socket_fd, &msg, sizeof(msg), 0, (struct sockaddr *)&client_address, address_length);
-            // RECEIVE
-            bytes_received = recvfrom(socket_fd, &msg, sizeof(msg), 0, (struct sockaddr *)&client_address, &address_length);
-            
+        else
+        {
+            if (myData->fragmentation == 'l')
+            {
+                /* SEND ROW ... */
+            }
+            else if (myData->fragmentation == 's')
+            {
+                /* SEND WORD ... */
+            }
+            else
+            {
+                /* SEND LETTER */
+                msg = source[i++];
+                bytes_sent = sendto(socket_fd, &msg, sizeof(msg), 0, (struct sockaddr *)&client_address, address_length);
+                bytes_received = recvfrom(socket_fd, &msgCheck, sizeof(msgCheck), 0, (struct sockaddr *)&client_address, &address_length);
+
+                if (rot13(msg) != msgCheck)
+                {
+                    kill(myData->clientPID, 10);
+                    CONNECTED = 0;
+                }
+            }
         }
+        //write(STDOUT_FILENO, &msg, sizeof(msg));
         //printf("\nSEND: %d RECV: %d",bytes_sent, bytes_received);
-        sleep(1);
+        nsleep(myData->interval);
     }
 
     free(source);
@@ -205,16 +236,16 @@ void clientRegisterSignal_handler(int signum, siginfo_t *siginfo, void *ptrVoid)
     }
 
     // Save data to structure and pass it to new THREAD
-    struct threadData currUser;
-    currUser.clientPID = clientPID;
-    currUser.book = clientData[1];
-    currUser.fragmentation = clientData[2];
-    currUser.interval = clientData[3];
-    currUser.path = socketPath;
+    struct threadData currUser[MAX_CLIENTS];
+    currUser[CLIENTS_COUNT].clientPID = clientPID;
+    currUser[CLIENTS_COUNT].book = clientData[1];
+    currUser[CLIENTS_COUNT].fragmentation = clientData[2];
+    currUser[CLIENTS_COUNT].interval = clientData[3];
+    currUser[CLIENTS_COUNT].path = socketPath;
 
     // CREATE THREAD
     pthread_t client_thread;
-    if (pthread_create(&client_thread, NULL, clientThread_handler, &currUser) < 0)
+    if (pthread_create(&client_thread, NULL, clientThread_handler, &currUser[CLIENTS_COUNT++]) < 0)
     {
         perror("pthread_create");
         registerStatus = 0;
@@ -322,4 +353,24 @@ int main(int argc, char **argv)
     }
 
     return 0;
+}
+
+/**
+ * Sleep <int> * 1/64[s]
+ */
+int nsleep(int time)
+{
+    long interval = (((long)time*1000)/ 64);
+
+    if (interval > 999)
+    {
+        req.tv_sec = (int)(interval / 1000);
+        req.tv_nsec = (interval - ((long)req.tv_sec * 1000)) * 1000000;
+    }
+    else
+    {
+        req.tv_sec = 0;
+        req.tv_nsec = interval * 1000000;
+    }
+    return nanosleep(&req, &rem);
 }
