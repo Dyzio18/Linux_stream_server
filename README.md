@@ -6,7 +6,7 @@ make
 
 command
 ./server.out -k store/ -p .info  
-./client.out -x1 -o64 -r10 -p .info -f l -s 4921
+./client.out -x1 -o64 -r10 -p .info -f l -s 3135
 
 
 

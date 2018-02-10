@@ -176,7 +176,8 @@ int main(int argc, char **argv)
     char *SV_SOCK_PATH = socketPath;
     int socket_fd;
     struct sockaddr_un server_address, client_address;
-    int bytes_received, bytes_sent, integer_buffer;
+    int bytes_received = 0;
+    int bytes_sent = 0;
     socklen_t address_length = sizeof(struct sockaddr_un);
 
     if ((socket_fd = socket(AF_UNIX, SOCK_DGRAM, 0)) < 0) {
@@ -189,7 +190,6 @@ int main(int argc, char **argv)
     char clientAddr_path[MAX_PATH];
     char *pathUniq = "cli";
     snprintf(clientAddr_path, sizeof(char)*(MAX_PATH+5) , "%s%s", SV_SOCK_PATH, pathUniq);
-    //printf("--> %s",clientAddr_path);//DEBUG
     strcpy(client_address.sun_path, clientAddr_path);
     client_address.sun_path[0] = 0; // Abstract namespace
 
@@ -203,24 +203,35 @@ int main(int argc, char **argv)
     strcpy(server_address.sun_path, SV_SOCK_PATH);
     server_address.sun_path[0] = 0;
 
-    // COMMUNICATION LOOP
-    integer_buffer = 1;
+    // ********************************************************
+    //                 COMMUNICATION LOOP
+    // ********************************************************
+
+    printf("\n\nSTART READING FROM SERVER ...\n\n");
+    int INITIALIZATION_FLAG = 1; // Send first msg with PID to authorize reguest
+    char msg;
+
     while(REGISTER_FLAG)
     {
-        bytes_sent = sendto(socket_fd, &integer_buffer, sizeof(integer_buffer), 0, (struct sockaddr *)&server_address, address_length);
+        if (INITIALIZATION_FLAG) {
+            bytes_sent = sendto(socket_fd, &clientPID, sizeof((int)clientPID), 0, (struct sockaddr *)&server_address, address_length);
+            INITIALIZATION_FLAG = 0;
+            printf("\n Initialization message send...");
+        }
+        else {
+            bytes_received = recvfrom(socket_fd, &msg, sizeof(msg), 0, (struct sockaddr *)&server_address, &address_length);
+            if (bytes_received != sizeof(msg)) {
+                printf("Error: recvfrom - %d.\n", bytes_received);
+            }
+            //printf("%c", msg);
+            write(STDOUT_FILENO, &msg, sizeof(msg));
 
-        bytes_received = recvfrom(socket_fd, &integer_buffer, sizeof(integer_buffer), 0, (struct sockaddr *)&server_address, &address_length);
-
-        if (bytes_received != sizeof(integer_buffer)) {
-            printf("Error: recvfrom - %d.\n", bytes_received);
+            bytes_sent = sendto(socket_fd, &msg, sizeof(msg), 0, (struct sockaddr *)&server_address, address_length);
         }
 
-        printf("received: %d\n", integer_buffer);
-
-        integer_buffer += 1;
+        //printf("\nSEND: %d RECV: %d\n",bytes_sent, bytes_received);
     }
 
     close(socket_fd);
-
     return 0;
 }

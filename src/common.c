@@ -63,3 +63,23 @@ short int decodeDataFrame_client(unsigned char *dataArr, int value){
     dataArr[0] = value & 0xFF;
     return (short int)(value >> 16) & 0xFF;
 }
+
+
+// ******************************
+// ROT13
+// ******************************
+
+int rot13(int c){
+  if('a' <= c && c <= 'z'){
+    return rot13b(c,'a');
+  } else if ('A' <= c && c <= 'Z') {
+    return rot13b(c, 'A');
+  } else {
+    return c;
+  }
+}
+
+int rot13b(int c, int basis){
+  c = (((c-basis)+13)%26)+basis;
+  return c;
+}

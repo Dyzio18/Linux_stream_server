@@ -17,6 +17,7 @@
 #include "common.h"
 
 int filedesc;
+char *catalog;
 
 struct signalfd_siginfo fdsi;
 struct threadData
@@ -28,7 +29,6 @@ struct threadData
     char *path;
 };
 
-#define BUF_SIZE 10
 #define MAX_PATH 20
 
 /*****************************************
@@ -46,6 +46,46 @@ void *clientThread_handler(void *thread_arg)
     };
 
     // -----------------------------------------------
+    //                  LOAD EXPECTED BOOK
+    // -----------------------------------------------
+    char *source = NULL;
+    FILE *fp = fopen("store/Pan_Tadeusz/0.txt", "r");
+
+    long bufsize;
+    if (fp != NULL)
+    {
+        /* Go to the end of the file. */
+        if (fseek(fp, 0L, SEEK_END) == 0)
+        {
+            /* Get the size of the file. */
+            bufsize = ftell(fp);
+            if (bufsize == -1) {
+                perror("ftell");
+            }
+
+            /* Allocate our buffer to that size. */
+            source = (char *)malloc(sizeof(char) * (bufsize + 1));
+
+            /* Go back to the start of the file. */
+            if (fseek(fp, 0L, SEEK_SET) != 0) {
+                perror("fseek");
+            }
+
+            /* Read the entire file into memory. */
+            size_t newLen = fread(source, sizeof(char), bufsize, fp);
+            if (ferror(fp) != 0) {
+                fputs("Error reading file", stderr);
+            }
+            else {
+                source[newLen++] = '\0'; /* Just to be safe. */
+            }
+        }
+        fclose(fp);
+    }
+
+
+
+    // -----------------------------------------------
     //                  SOCKETS
     // -----------------------------------------------
 
@@ -54,10 +94,12 @@ void *clientThread_handler(void *thread_arg)
 
     int socket_fd;
     struct sockaddr_un server_address, client_address;
-    int bytes_received, bytes_sent, integer_buffer;
+    int bytes_received = 0;
+    int bytes_sent = 0;
     socklen_t address_length = sizeof(struct sockaddr_un);
 
-    if ((socket_fd = socket(AF_UNIX, SOCK_DGRAM, 0)) < 0) {
+    if ((socket_fd = socket(AF_UNIX, SOCK_DGRAM, 0)) < 0)
+    {
         perror("socket");
     }
 
@@ -67,27 +109,59 @@ void *clientThread_handler(void *thread_arg)
     strcpy(server_address.sun_path, SV_SOCK_PATH);
     server_address.sun_path[0] = 0;
 
-    if (bind(socket_fd, (const struct sockaddr *)&server_address, address_length) < 0) {
+    if (bind(socket_fd, (const struct sockaddr *)&server_address, address_length) < 0)
+    {
         close(socket_fd);
         perror("bind");
     }
 
-    while(CONNECTED)
-    {
-        // RECEIVE
-        bytes_received = recvfrom(socket_fd, &integer_buffer, sizeof(integer_buffer), 0, (struct sockaddr *)&client_address, &address_length);
-        if (bytes_received != sizeof(integer_buffer)) {
-            printf("Error: recvfrom - %d.\n", bytes_received);
-        }
 
-        // SEND
-        printf("received: %d.\n", integer_buffer);
-        integer_buffer += 10;
-        bytes_sent = sendto(socket_fd, &integer_buffer, sizeof(integer_buffer), 0, (struct sockaddr *)&client_address, address_length);
-        
-        sleep(5);
+    // DISPLAY TEXT (for test only)
+        char tempChar;
+        for (int i = 0; i < bufsize; i++)
+        {
+            tempChar =  source[i];
+            printf("%c",tempChar);
+        }
+    // ---------
+
+
+    int INITIALIZATION_FLAG = 0; // Send first msg with PID to authorize reguest
+    int i = 0;
+    char msg = 'x';
+    
+    // -----------------------------------------------
+    //           COMMUNITACTION LOOP
+    // -----------------------------------------------
+    while (CONNECTED)
+    {
+        // CHECK FIRST MSG WITH CLIENT PID
+        if (INITIALIZATION_FLAG == 0) {
+            bytes_received = recvfrom(socket_fd, &INITIALIZATION_FLAG, sizeof(INITIALIZATION_FLAG), 0, (struct sockaddr *)&client_address, &address_length);
+            if (INITIALIZATION_FLAG == myData->clientPID) {           
+                printf("\n\nCLIENT with PID %d authorized\n",INITIALIZATION_FLAG);
+            }
+            else {
+                printf("\n\nCLIENT with PID %d cannot be authorized\n", myData->clientPID);
+                CONNECTED = 0;
+            }
+            printf("\n\n**Init succes*\n\n");
+        }
+        else {
+            // SEND
+            msg = source[i++];
+            //printf("%c", msg);
+            write(STDOUT_FILENO, &msg, sizeof(msg));
+            bytes_sent = sendto(socket_fd, &msg, sizeof(msg), 0, (struct sockaddr *)&client_address, address_length);
+            // RECEIVE
+            bytes_received = recvfrom(socket_fd, &msg, sizeof(msg), 0, (struct sockaddr *)&client_address, &address_length);
+            
+        }
+        //printf("\nSEND: %d RECV: %d",bytes_sent, bytes_received);
+        sleep(1);
     }
 
+    free(source);
     close(socket_fd);
 
     // -----------------------------------------------
@@ -108,7 +182,7 @@ void clientRegisterSignal_handler(int signum, siginfo_t *siginfo, void *ptrVoid)
 {
     unsigned int clientPID = siginfo->si_pid;               // Get PID of signal sender
     unsigned int clientValue = siginfo->si_value.sival_int; // Get client value
-    printf("\nNew client connected (PID: %d)", clientPID, clientValue);
+    printf("\nNew client connected (PID: %d)", clientPID);
     // Decode data frame
     unsigned char clientData[4];
     decodeDataFrame_server(clientData, clientValue);
@@ -138,7 +212,6 @@ void clientRegisterSignal_handler(int signum, siginfo_t *siginfo, void *ptrVoid)
     currUser.interval = clientData[3];
     currUser.path = socketPath;
 
-
     // CREATE THREAD
     pthread_t client_thread;
     if (pthread_create(&client_thread, NULL, clientThread_handler, &currUser) < 0)
@@ -146,7 +219,6 @@ void clientRegisterSignal_handler(int signum, siginfo_t *siginfo, void *ptrVoid)
         perror("pthread_create");
         registerStatus = 0;
     }
-
 
     // Send SIGNAL with DATA
     union sigval sv;
@@ -173,7 +245,6 @@ void clientRegisterSignal_create()
 int main(int argc, char **argv)
 {
 
-    char *catalog;
     char *infofile;
 
     // *************************************************************
