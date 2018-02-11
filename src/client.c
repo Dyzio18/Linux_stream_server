@@ -1,3 +1,10 @@
+/**
+ * Name: Book streaming (CLIENT)
+ * @Author: Patryk Nizio
+ * Date: 2018.02
+ * https://github.com/Dyzio18/Linux_stream_server
+ */
+
 #include <stdio.h>
 #include <unistd.h>
 #include <sys/time.h>
@@ -16,7 +23,6 @@
 
 #include "common.h"
 
-#define BUF_SIZE 10
 #define MAX_PATH 16
 #define LINE 256
 #define WORD 24
@@ -212,7 +218,7 @@ int main(int argc, char **argv)
     memset(&client_address, 0, sizeof(client_address));
     client_address.sun_family = AF_UNIX;
     char clientAddr_path[MAX_PATH];
-    char *pathUniq = "cli";
+    const char *pathUniq = "cli";
     snprintf(clientAddr_path, sizeof(char) * (MAX_PATH + 5), "%s%s", SV_SOCK_PATH, pathUniq);
     strcpy(client_address.sun_path, clientAddr_path);
     client_address.sun_path[0] = 0; // Abstract namespace

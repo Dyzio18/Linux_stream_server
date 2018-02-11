@@ -1,3 +1,10 @@
+/**
+ * Name: Book streaming (SERVER)
+ * @Author: Patryk Nizio
+ * Date: 2018.02
+ * https://github.com/Dyzio18/Linux_stream_server
+ */
+
 #include <stdio.h>
 #include <unistd.h>
 #include <sys/time.h>
@@ -29,6 +36,7 @@ struct threadData
     char fragmentation;
     int interval;
     char *path;
+    pthread_t client_thread;
 };
 int nsleep(int time);
 
@@ -60,6 +68,11 @@ void *clientThread_handler(void *thread_arg)
     // -----------------------------------------------
     char *source = NULL;
     FILE *fp = fopen(sourcePath, "r");
+
+    if (fp == NULL){
+        snprintf(sourcePath, sizeof(sourcePath), "%s/%d.txt", catalog, myData->book);
+        fp = fopen(sourcePath, "r");
+    }
 
     long bufsize;
     if (fp != NULL)
@@ -98,6 +111,7 @@ void *clientThread_handler(void *thread_arg)
     else
     {
         printf("\nResources not found...\n ");
+        pthread_cancel(myData->client_thread);
         pthread_exit(NULL);
     }
 
@@ -109,7 +123,7 @@ void *clientThread_handler(void *thread_arg)
     int socket_fd;
     struct sockaddr_un server_address, client_address;
     int bytes_received = 0;
-    int bytes_sent = 0;
+    //int bytes_sent = 0;
     socklen_t address_length = sizeof(struct sockaddr_un);
 
     if ((socket_fd = socket(AF_UNIX, SOCK_DGRAM, 0)) < 0)
@@ -157,7 +171,7 @@ void *clientThread_handler(void *thread_arg)
         // CHECK FIRST MSG WITH CLIENT PID
         if (INITIALIZATION_FLAG == 0)
         {
-            bytes_received = recvfrom(socket_fd, &INITIALIZATION_FLAG, sizeof(INITIALIZATION_FLAG), 0, (struct sockaddr *)&client_address, &address_length);
+            recvfrom(socket_fd, &INITIALIZATION_FLAG, sizeof(INITIALIZATION_FLAG), 0, (struct sockaddr *)&client_address, &address_length);
             if (INITIALIZATION_FLAG == myData->clientPID)
             {
                 printf("\n\nCLIENT with PID %d authorized\n", INITIALIZATION_FLAG);
@@ -192,7 +206,7 @@ void *clientThread_handler(void *thread_arg)
                     lineLen++;
                 }
                 lineBuff[lineLen + 1] = '\0';
-                bytes_sent = sendto(socket_fd, &lineBuff, sizeof(char) * LINE, 0, (struct sockaddr *)&client_address, address_length);
+                sendto(socket_fd, &lineBuff, sizeof(char) * LINE, 0, (struct sockaddr *)&client_address, address_length);
                 bytes_received = recvfrom(socket_fd, &lineBuffCheck, sizeof(char) * LINE, 0, (struct sockaddr *)&client_address, &address_length);
                 //write(STDOUT_FILENO, lineBuffCheck, sizeof(char) * LINE);
                 if (!rot13_arr_check(lineBuff, lineBuffCheck, WORD))
@@ -218,7 +232,7 @@ void *clientThread_handler(void *thread_arg)
                     wordLen++;
                 }
                 wordBuff[wordLen + 1] = '\0';
-                bytes_sent = sendto(socket_fd, &wordBuff, sizeof(char) * WORD, 0, (struct sockaddr *)&client_address, address_length);
+                sendto(socket_fd, &wordBuff, sizeof(char) * WORD, 0, (struct sockaddr *)&client_address, address_length);
                 bytes_received = recvfrom(socket_fd, &wordBuffCheck, sizeof(char) * WORD, 0, (struct sockaddr *)&client_address, &address_length);
                 //write(STDOUT_FILENO, wordBuff, sizeof(char) * WORD);
                 if (!rot13_arr_check(wordBuff, wordBuffCheck, WORD))
@@ -231,7 +245,7 @@ void *clientThread_handler(void *thread_arg)
             {
                 /* SEND LETTER */
                 msg = source[i++];
-                bytes_sent = sendto(socket_fd, &msg, sizeof(msg), 0, (struct sockaddr *)&client_address, address_length);
+                sendto(socket_fd, &msg, sizeof(msg), 0, (struct sockaddr *)&client_address, address_length);
                 bytes_received = recvfrom(socket_fd, &msgCheck, sizeof(msgCheck), 0, (struct sockaddr *)&client_address, &address_length);
 
                 if (rot13(msg) != msgCheck)
@@ -240,6 +254,10 @@ void *clientThread_handler(void *thread_arg)
                     CONNECTED = 0;
                 }
             }
+            if (bytes_received < 1)
+            {
+                CONNECTED = 0;
+            }
         }
         //write(STDOUT_FILENO, &msg, sizeof(msg));
         //printf("\nSEND: %d RECV: %d",bytes_sent, bytes_received);
@@ -247,8 +265,9 @@ void *clientThread_handler(void *thread_arg)
     }
 
     free(source);
-    close(socket_fd);
+    close(socket_fd); 
     pthread_exit(NULL);
+    pthread_cancel(myData->client_thread);
 }
 
 /*****************************************
@@ -302,6 +321,7 @@ void clientRegisterSignal_handler(int signum, siginfo_t *siginfo, void *ptrVoid)
     {
         // CREATE THREAD
         pthread_t client_thread;
+        currUser[CLIENTS_COUNT].client_thread = client_thread;
         if (pthread_create(&client_thread, NULL, clientThread_handler, &currUser[CLIENTS_COUNT++]) < 0)
         {
             perror("pthread_create");

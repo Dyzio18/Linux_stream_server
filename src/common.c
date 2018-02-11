@@ -14,7 +14,7 @@
  */
 void helpDisplay_client()
 {
-    printf("\nKlient:\n\t-s <pid> PID procesu serwera\n\t-r <sygnał> numer sygnału RT, który ma być zastosowany przy komunikacie zwrotnym\n\t-x <nr> numer księgi, którą ma odczytać\n\t-p <czas> długość interwału pomiędzy komunikatami\n\n\n");
+    printf("\nKlient:\n\t-s <pid> PID procesu serwera\n\t-r <signal> numer sygnału RT, który ma być zastosowany przy komunikacie zwrotnym\n\t-x <int> numer księgi, którą ma odczytać\n\t-o <int> długość interwału pomiędzy komunikatami\n\t-f <char> (fragmentacja tekstu)\n\t\t z - slowa\n\t\t l - linia \n\t\t s - slowa\n\t-p <file> sciezka do tablicy ogloszeniowej\n\n\n");
 }
 
 /**
