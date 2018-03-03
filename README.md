@@ -5,8 +5,14 @@ Stream text files using socket
 
 ```
 make
+
 ```
 
+## LIVE:
+![epopeja_server_test_manual](https://github.com/Dyzio18/Linux_stream_server/blob/master/epopeja_server_test_manual.gif?raw=true)
+
+Run with test (test.sh): 
+![epopeja_server_test_auto](https://github.com/Dyzio18/Linux_stream_server/blob/master/epopeja_server_test_auto.gif?raw=true)
 
 ## Example:
 
