@@ -30,8 +30,8 @@ EN
 
 ## Run options:
 
-``
 Customer:
+```
 -s <pid> PID of the server process
 -r <signal> number of the RT signal to be used for the feedback
 -x <int> number of the book to be read
@@ -41,13 +41,14 @@ with - words
 l - line
 s - words
 -p <file> path to the advertisement board
-``
-``
+```
+
 Server:
+```
 -k <dir> directory where files for sharing are stored
 -p <file> path to the file serving as the bulletin board.
 
-`` 
+```
 
 ## Case description
 
@@ -95,8 +96,9 @@ PL
 
 ## Run options:
 
-```
 Klient:
+
+```
 	-s <pid> PID procesu serwera
 	-r <signal> numer sygnału RT, który ma być zastosowany przy komunikacie zwrotnym
 	-x <int> numer księgi, którą ma odczytać
@@ -107,8 +109,9 @@ Klient:
 		 s - slowa
 	-p <file> sciezka do tablicy ogloszeniowej
 ```
-```
+
 Serwer:
+```
 	-k <katalog> katalog, w którym są przechowywane pliki do udostępniania
 	-p <plik> ścieżka do pliku pełniącego rolę tablicy ogłoszeniowej.
 
