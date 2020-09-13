@@ -25,6 +25,74 @@ Client side:
 ./client.out -r 10 -o 64 -f l -p .info -x 1 -s <server_pid>
 ```
 
+---
+EN
+
+## Run options:
+
+``
+Customer:
+-s <pid> PID of the server process
+-r <signal> number of the RT signal to be used for the feedback
+-x <int> number of the book to be read
+-o <int> length of the interval between messages
+-f <char> (fragment text)
+with - words
+l - line
+s - words
+-p <file> path to the advertisement board
+``
+``
+Server:
+-k <dir> directory where files for sharing are stored
+-p <file> path to the file serving as the bulletin board.
+
+`` 
+
+## Case description
+
+Create a server that makes books available to readers (clients). Clients can specify parameters such as sending interval, data format (line, word, letter), server response signal and book number. The connection is to be initiated by asynchronous signals. Clients learn about the allocated slot from the "advertisement" file. AF_UNIX sockets should be used.
+
+
+### How it works in few word
+
+TL;DR
+The code is divided into two programs: Client and Server.
+The server streams (provides) materials provided with parameters specified by the client.
+The client receives and displays messages from the server.
+
+### Server
+
+The server is listening to clients. Each client is a separate thread.
+The server waits for a signal from the client. When the client sends the signal, the server will intercept the signal
+SIGRTMIN + 11 and completes the user registration process. Registration will fail
+once the user limit is reached, it will be impossible to write the path to the array
+post or thread creation.
+The server sends the RT signal (user specified) with the message of the registration result
+and the data needed to read the socket address from the bulletin board.
+Then the server creates a new thread that will serve the given user (server
+passes a data structure to the thread).
+In the given thread, the file requested by the user is loaded to create a socket
+with the correct path. The data streaming process itself is as follows:
+1. The thread is listening to the socket waiting for messages from the client
+2. When the thread receives the first (initiating) message, it will check to see if it is
+"Random" comparing the data with the client's PID.
+3. Sending properly portioned data (lines, words, characters) to the customer
+4. Check (decode) every client message with ROT13
+5. In case of an error, end of sending, failure to read or incorrect reading of data
+the client closes the socket and thread.
+
+### Client
+
+The client takes runtime arguments (getopd) then creates handles to signals and
+it sends the request (RT signal SIGRTMIN + 11) to the server with the user specified
+parameters. After the server accepts the request, the client reads the path from
+"Bulletin board" and creates sockets. Then, through these sockets will be held
+reading and sending confirmations to the server (encoded by ROT13).
+
+---
+PL
+
 ## Run options:
 
 ```
@@ -53,7 +121,7 @@ Serwer:
 Stwórz serwer który udostępnia księgi czytelnikom (klientom). Klienci mogą podać takie parametry jak interwał wysyłania, format danych (linia, słowo, litera), sygnał odpowiedzi serwera oraz numer księgi.Inicjalizacja połączenia ma odbywać sie za pomocą sygnałów asynchronicznych. Klienci dowiadują się o przydzielonym gnieździe na postawie pliku "ogłoszeniowego". Należy użyć socketów AF_UNIX.
 
 
-### SZKIC DZIAŁANIA:
+### Opis:
 
 Kod dzieli się na dwa programy: Klient i Serwer.
 Serwer streamuje (udostępnia) materiały podane z określonymi przez klienta parametrami.
